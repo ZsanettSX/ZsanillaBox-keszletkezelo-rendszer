@@ -43,12 +43,33 @@ model RawMaterial {
   lastUpdated DateTime @updatedAt
   createdAt   DateTime @default(now())
 
-  recipeItems  RecipeItem[]
-  usageHistory UsageHistory[]
-  reorderLogs  ReorderLog[]
+  recipeItems   RecipeItem[]
+  usageHistory  UsageHistory[]
+  reorderLogs   ReorderLog[]
+  stockReceipts StockReceipt[]
 
   @@index([active])
   @@map("raw_materials")
+}
+
+/// Bevételezés: amit ténylegesen megvettünk és beérkezett.
+///
+/// Szándékosan külön a fogyásnaplótól: a beszerzés NEM negatív fogyás. Ha ide
+/// kerülne, csökkentené a számolt napi átlagfogyást, és a rendszer alábecsülné
+/// a szükségletet — pont fordítva működne, mint kellene.
+model StockReceipt {
+  id            String   @id @default(uuid())
+  rawMaterialId String
+  date          DateTime @db.Date
+  quantity      Float
+  note          String?
+  createdAt     DateTime @default(now())
+
+  rawMaterial RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@index([rawMaterialId, date])
+  @@index([date])
+  @@map("stock_receipts")
 }
 
 /// ZsanillaBox termékek (amit a Shopify-on árulunk)

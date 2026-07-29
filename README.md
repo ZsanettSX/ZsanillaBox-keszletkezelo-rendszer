@@ -100,6 +100,22 @@ rendelésekkel.
 4. **Beállítások** (`/beallitasok`) — tartaléknapok (javasolt: 14), fogyás-ablak
    (javasolt: 60 nap), riasztás-szünet (javasolt: 4 nap).
 
+### Napi használat: új készlet bevételezése
+
+Amikor megérkezik egy szállítmány, a **Bevételezés** oldalon egyben rögzítheted: az
+alapanyagok beszállítónként vannak csoportosítva, a sorok mellé beírod, mennyit vettél,
+megadsz egy közös dátumot, és egyszerre mented. A *Javasolt* oszlopban lévő számra
+kattintva beírja a rendszer által ajánlott mennyiséget.
+
+A bevételezés **nem számít fogyásnak**. Ez fontos: ha a beszerzés a fogyásnaplóba
+kerülne, lehúzná a számolt napi átlagot, és a rendszer épp akkor rendelne kevesebbet,
+amikor a legtöbbre lenne szükség. Ezért külön nyilvántartásba kerül, és az átlagfogyást
+nem érinti.
+
+Ha nem beszerzés miatt tér el a készlet — elveszett, elrontott darab, leltárkülönbözet —,
+azt az alapanyag saját oldalán a **Leltár** dobozzal javítsd. Az a különbözetet
+fogyásként könyveli, ami ott helyes.
+
 ### A Shopify export letöltése
 
 Shopify admin → **Orders** → jobb felül **Export** → *All orders* / kívánt időszak →
@@ -354,7 +370,7 @@ prisma/migrations/            SQL migrációk
 prisma/seed.ts                mintaadat
 
 src/lib/reorder.ts            a számítási logika (tiszta függvények)
-src/lib/inventory.ts          adatbázis-műveletek: levonás, újraszámolás, áttekintés
+src/lib/inventory.ts          adatbázis-műveletek: levonás, bevételezés, újraszámolás
 src/lib/shopify.ts            webhook HMAC-ellenőrzés és rendelés-értelmezés
 src/lib/shopify-csv.ts        a történeti export feldolgozása
 src/lib/alerts.ts             a napi riasztás folyamata

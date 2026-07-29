@@ -6,11 +6,12 @@
  * ugyanúgy viselkednek, mint élesben — szemben egy kézzel írt mock-kal, ami
  * pont a kockázatos részeket hazudná el.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import crypto from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const MIGRATION_PATH = 'prisma/migrations/20260729000000_init/migration.sql';
+const MIGRATIONS_DIR = 'prisma/migrations';
 const WEBHOOK_SECRET = 'teszt-webhook-titok';
 
 vi.mock('./db', async () => {
@@ -21,9 +22,21 @@ vi.mock('./db', async () => {
   process.env.DATABASE_URL ??= 'postgresql://pglite/pglite';
 
   const pglite = new PGlite();
-  // A PowerShell BOM-mal írja ki a fájlt; a Postgres azt szintaktikai hibaként látná.
-  const sql = readFileSync(MIGRATION_PATH, 'utf8').replace(/^﻿/, '');
-  await pglite.exec(sql);
+
+  // Minden migrációt sorrendben lefuttatunk, hogy a teszt-séma együtt mozogjon
+  // az élessel — egy új migráció után ne kelljen itt is átírni semmit.
+  const migrations = readdirSync(MIGRATIONS_DIR)
+    .filter((entry) => statSync(join(MIGRATIONS_DIR, entry)).isDirectory())
+    .sort();
+
+  for (const migration of migrations) {
+    // A BOM-mal kiírt fájlt a Postgres szintaktikai hibaként látná.
+    const sql = readFileSync(join(MIGRATIONS_DIR, migration, 'migration.sql'), 'utf8').replace(
+      /^﻿/,
+      '',
+    );
+    await pglite.exec(sql);
+  }
 
   return { prisma: new PrismaClient({ adapter: new PrismaPGlite(pglite) }) };
 });
@@ -41,14 +54,22 @@ vi.mock('./email', async () => {
 });
 
 const { prisma } = await import('./db');
-const { applyShopifyOrder, applyUsage, getInventoryOverview, recalculate, setStockLevel, toDateOnly } =
-  await import('./inventory');
+const {
+  applyShopifyOrder,
+  applyUsage,
+  getInventoryOverview,
+  recalculate,
+  recordStockReceipts,
+  setStockLevel,
+  toDateOnly,
+} = await import('./inventory');
 const { runDailyAlert } = await import('./alerts');
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 
 async function resetDatabase() {
   await prisma.usageHistory.deleteMany();
+  await prisma.stockReceipt.deleteMany();
   await prisma.reorderLog.deleteMany();
   await prisma.recipeItem.deleteMany();
   await prisma.processedOrder.deleteMany();
@@ -177,6 +198,70 @@ describe('setStockLevel', () => {
 
     const [entry] = await prisma.usageHistory.findMany({ where: { rawMaterialId: material.id } });
     expect(entry.quantityUsed).toBe(-10);
+  });
+});
+
+describe('recordStockReceipts', () => {
+  it('növeli a készletet és naplózza a beszerzést', async () => {
+    const material = await makeMaterial({ currentStock: 50 });
+
+    const count = await recordStockReceipts([{ rawMaterialId: material.id, quantity: 30 }], {
+      note: 'teszt rendelés',
+    });
+
+    expect(count).toBe(1);
+    expect((await prisma.rawMaterial.findUniqueOrThrow({ where: { id: material.id } })).currentStock).toBe(80);
+
+    const [receipt] = await prisma.stockReceipt.findMany({ where: { rawMaterialId: material.id } });
+    expect(receipt.quantity).toBe(30);
+    expect(receipt.note).toBe('teszt rendelés');
+  });
+
+  it('NEM ír a fogyásnaplóba, így az átlagfogyás változatlan marad', async () => {
+    // Ez a lényeg: ha a beszerzés negatív fogyásként kerülne be, lehúzná az
+    // átlagot, és a rendszer épp akkor rendelne kevesebbet, amikor kellene.
+    const material = await makeMaterial({ currentStock: 10, leadTimeDays: 10, safetyBuffer: 0 });
+    await prisma.usageHistory.create({
+      data: { rawMaterialId: material.id, date: toDateOnly(daysAgo(5)), quantityUsed: 120, source: 'import' },
+    });
+    await recalculate([material.id]);
+    const before = await prisma.rawMaterial.findUniqueOrThrow({ where: { id: material.id } });
+
+    await recordStockReceipts([{ rawMaterialId: material.id, quantity: 500 }]);
+    await recalculate([material.id]);
+    const after = await prisma.rawMaterial.findUniqueOrThrow({ where: { id: material.id } });
+
+    expect(await prisma.usageHistory.count({ where: { rawMaterialId: material.id } })).toBe(1);
+    expect(after.avgDailyUsage).toBe(before.avgDailyUsage);
+    expect(after.reorderPoint).toBe(before.reorderPoint);
+    expect(after.currentStock).toBe(510);
+  });
+
+  it('a nulla és negatív sorokat kihagyja', async () => {
+    const material = await makeMaterial({ currentStock: 50 });
+
+    const count = await recordStockReceipts([
+      { rawMaterialId: material.id, quantity: 0 },
+      { rawMaterialId: material.id, quantity: -5 },
+    ]);
+
+    expect(count).toBe(0);
+    expect((await prisma.rawMaterial.findUniqueOrThrow({ where: { id: material.id } })).currentStock).toBe(50);
+    expect(await prisma.stockReceipt.count()).toBe(0);
+  });
+
+  it('több alapanyagot egy tranzakcióban könyvel', async () => {
+    const a = await makeMaterial({ name: 'A', currentStock: 10 });
+    const b = await makeMaterial({ name: 'B', currentStock: 20 });
+
+    const count = await recordStockReceipts([
+      { rawMaterialId: a.id, quantity: 5 },
+      { rawMaterialId: b.id, quantity: 7 },
+    ]);
+
+    expect(count).toBe(2);
+    expect((await prisma.rawMaterial.findUniqueOrThrow({ where: { id: a.id } })).currentStock).toBe(15);
+    expect((await prisma.rawMaterial.findUniqueOrThrow({ where: { id: b.id } })).currentStock).toBe(27);
   });
 });
 

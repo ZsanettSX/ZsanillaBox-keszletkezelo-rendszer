@@ -206,6 +206,46 @@ export async function setStockLevel(
   await recalculate([rawMaterialId]);
 }
 
+export type StockReceiptInput = { rawMaterialId: string; quantity: number };
+
+/**
+ * Bevételezés: a megvásárolt mennyiség hozzáadása a készlethez.
+ *
+ * Szándékosan NEM ír a fogyásnaplóba. A beszerzés nem negatív fogyás — ha oda
+ * kerülne, lehúzná a számolt napi átlagot, és a rendszer épp akkor rendelne
+ * kevesebbet, amikor a legtöbbre lenne szükség.
+ *
+ * Az átlagfogyás és a rendelési pont sem a készletből számolódik, ezért itt
+ * nincs szükség újraszámolásra.
+ */
+export async function recordStockReceipts(
+  receipts: StockReceiptInput[],
+  opts: { date?: Date; note?: string } = {},
+): Promise<number> {
+  const items = receipts.filter((r) => r.quantity > 0);
+  if (items.length === 0) return 0;
+
+  const date = toDateOnly(opts.date);
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      await tx.rawMaterial.update({
+        where: { id: item.rawMaterialId },
+        data: { currentStock: { increment: item.quantity } },
+      });
+      await tx.stockReceipt.create({
+        data: {
+          rawMaterialId: item.rawMaterialId,
+          date,
+          quantity: item.quantity,
+          note: opts.note ?? null,
+        },
+      });
+    }
+  });
+
+  return items.length;
+}
+
 export type ShopifyOrderLine = { shopifyProductId: string; quantity: number };
 
 /**

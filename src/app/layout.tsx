@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 
 const NAV = [
   { href: '/', label: 'Áttekintés' },
+  { href: '/bevetelezes', label: 'Bevételezés' },
   { href: '/alapanyagok', label: 'Alapanyagok' },
   { href: '/termekek', label: 'Termékek & receptek' },
   { href: '/fogyas', label: 'Fogyás' },
