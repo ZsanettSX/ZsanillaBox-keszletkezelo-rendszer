@@ -53,7 +53,9 @@ export function buildAlertEmail(rows: DashboardRow[], appUrl: string): AlertEmai
               <td style="${cell}text-align:right;">${escapeHtml(formatQtyWithUnit(row.currentStock, row.unit))}</td>
               <td style="${cell}text-align:right;color:#64748b;">${escapeHtml(formatQty(row.reorderPoint))}</td>
               <td style="${cell}text-align:right;font-weight:600;color:#0f172a;">${escapeHtml(
-                formatQtyWithUnit(row.suggestedOrder, row.unit),
+                // A 0 javaslat („elérted a puffert, de nincs mért fogyás”) félrevezetően
+                // úgy néz ki, mintha hiba lenne — a dashboard is gondolatjelet mutat.
+                row.suggestedOrder > 0 ? formatQtyWithUnit(row.suggestedOrder, row.unit) : '–',
               )}</td>
             </tr>`,
         )
@@ -98,7 +100,7 @@ export function buildAlertEmail(rows: DashboardRow[], appUrl: string): AlertEmai
       (row) =>
         `• ${row.name}: készlet ${formatQtyWithUnit(row.currentStock, row.unit)}, ` +
         `rendelési pont ${formatQty(row.reorderPoint)}, ` +
-        `javasolt rendelés ${formatQtyWithUnit(row.suggestedOrder, row.unit)}` +
+        `javasolt rendelés ${row.suggestedOrder > 0 ? formatQtyWithUnit(row.suggestedOrder, row.unit) : 'nincs'}` +
         (row.supplierName ? ` — ${row.supplierName}` : ''),
     ),
     '',
