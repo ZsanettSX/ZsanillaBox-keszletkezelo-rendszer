@@ -59,6 +59,24 @@ async function main() {
   }
   if (lines.length === 0) fail('Nincs importálható tétel.');
 
+  // Amit az élő webhook már lekönyvelt, azt az importnak ki kell hagynia —
+  // különben minden újraimportálásnál duplázódna a webhook óta beérkezett
+  // rendelések fogyása.
+  const processed = await prisma.processedOrder.findMany({ select: { orderName: true } });
+  const processedNames = new Set(
+    processed.map((p) => p.orderName).filter((name): name is string => Boolean(name)),
+  );
+  const alreadyLive = lines.filter((l) => processedNames.has(l.orderName));
+  const importableLines = lines.filter((l) => !processedNames.has(l.orderName));
+
+  if (alreadyLive.length > 0) {
+    const orders = new Set(alreadyLive.map((l) => l.orderName));
+    console.log(
+      `Kihagyva ${alreadyLive.length} tétel ${orders.size} rendelésből: ezeket az élő webhook már lekönyvelte.`,
+    );
+  }
+  if (importableLines.length === 0) fail('Minden tételt feldolgozott már az élő webhook.');
+
   // ── Termékek párosítása ────────────────────────────────────────────────────
   const products = await prisma.product.findMany({ include: { recipeItems: true } });
   if (products.length === 0) {
@@ -89,7 +107,7 @@ async function main() {
   const aggregated = new Map<string, number>();
   let matchedLines = 0;
 
-  for (const line of lines) {
+  for (const line of importableLines) {
     let product = line.sku ? bySku.get(line.sku.toLowerCase()) : undefined;
     if (!product && line.title) {
       for (const variant of titleVariants(line.title)) {
@@ -117,7 +135,7 @@ async function main() {
     }
   }
 
-  console.log(`\nPárosított tétel: ${matchedLines} / ${lines.length}`);
+  console.log(`\nPárosított tétel: ${matchedLines} / ${importableLines.length}`);
 
   if (unmatched.size > 0) {
     console.log(`\n⚠ Nem találtam hozzájuk terméket (${unmatched.size} féle):`);

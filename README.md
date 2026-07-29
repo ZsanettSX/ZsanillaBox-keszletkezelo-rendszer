@@ -97,6 +97,13 @@ rendelésekkel.
    > egyszer levonni a múltbeli rendeléseket. (Ha a felvitt készlet a történeti időszak
    > *eleji* állapot, akkor használd az `--apply-stock` kapcsolót.)
 
+   > **Ha később új alapanyagot teszel egy receptbe, futtasd újra az importot**
+   > (`--replace` kapcsolóval). Az import a futtatás pillanatában érvényes receptek
+   > szerint bontja fel a régi rendeléseket, ezért az utólag hozzáadott alapanyagnak
+   > nincs történeti fogyása — a rendszer azt hinné, hogy sosem fogy belőle, és nem
+   > szólna időben. Az újraimportálás biztonságos: a jelenlegi készlethez nem nyúl, és
+   > az élő webhook által már lekönyvelt rendeléseket kihagyja, tehát nem duplázódik.
+
 4. **Beállítások** (`/beallitasok`) — tartaléknapok (javasolt: 14), fogyás-ablak
    (javasolt: 60 nap), riasztás-szünet (javasolt: 4 nap).
 
