@@ -6,15 +6,40 @@ import { getSettings } from '@/lib/settings';
 export const dynamic = 'force-dynamic';
 
 /** Csak azt mutatjuk meg, hogy be van-e állítva — az értéket soha. */
-const CHECKS: Array<{ env: string; label: string; hint: string }> = [
+const CHECKS: Array<{ env: string; label: string; hint: string; optional?: boolean }> = [
   { env: 'DATABASE_URL', label: 'Adatbázis', hint: 'PostgreSQL kapcsolat (Neon / Railway / Supabase)' },
-  { env: 'SHOPIFY_WEBHOOK_SECRET', label: 'Shopify webhook titok', hint: 'A custom app „API secret key” értéke — enélkül minden webhookot elutasítunk' },
-  { env: 'SHOPIFY_ADMIN_ACCESS_TOKEN', label: 'Shopify Admin token', hint: 'A webhook regisztrálásához kell (shpat_…)' },
+  {
+    env: 'SHOPIFY_WEBHOOK_SECRET',
+    label: 'Shopify webhook titok',
+    hint: 'Amivel a Shopify aláírja a hívásokat. Ha a webhookot az admin felületen vetted fel: a Notifications oldal alján kiírt titok. Ha custom appal: az app „API secret key” értéke. Enélkül minden webhookot elutasítunk.',
+  },
+  {
+    env: 'SHOPIFY_ADMIN_ACCESS_TOKEN',
+    label: 'Shopify Admin token',
+    hint: 'Csak akkor kell, ha a webhookokat scripttel regisztrálod. Ha a Shopify admin felületén vetted fel őket, nincs rá szükség.',
+    optional: true,
+  },
   { env: 'RESEND_API_KEY', label: 'Resend API kulcs', hint: 'Az email küldéséhez' },
   { env: 'ALERT_EMAIL_TO', label: 'Riasztás címzettje', hint: 'Ide megy a napi összesítő' },
   { env: 'CRON_SECRET', label: 'Cron titok', hint: 'A napi futtatás endpointját védi' },
   { env: 'ADMIN_PASSWORD', label: 'Admin jelszó', hint: 'A felület jelszavas védelme (élesben erősen ajánlott)' },
 ];
+
+const BADGES = {
+  set: {
+    label: 'beállítva',
+    className: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  },
+  missing: {
+    label: 'hiányzik',
+    className: 'bg-amber-50 text-amber-800 ring-amber-500/30',
+  },
+  // Az opcionális, kitöltetlen érték nem hiba — ne riogasson sárgával.
+  notNeeded: {
+    label: 'nem szükséges',
+    className: 'bg-slate-100 text-slate-600 ring-slate-400/30',
+  },
+} as const;
 
 export default async function SettingsPage() {
   let settings;
@@ -55,6 +80,12 @@ export default async function SettingsPage() {
         <ul className="divide-y divide-slate-100">
           {CHECKS.map((check) => {
             const configured = Boolean(process.env[check.env]?.trim());
+            const badge = configured
+              ? BADGES.set
+              : check.optional
+                ? BADGES.notNeeded
+                : BADGES.missing;
+
             return (
               <li key={check.env} className="flex items-start justify-between gap-4 py-3">
                 <div>
@@ -63,13 +94,9 @@ export default async function SettingsPage() {
                   <code className="text-xs text-slate-400">{check.env}</code>
                 </div>
                 <span
-                  className={
-                    configured
-                      ? 'shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-600/20 ring-inset'
-                      : 'shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-500/30 ring-inset'
-                  }
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${badge.className}`}
                 >
-                  {configured ? 'beállítva' : 'hiányzik'}
+                  {badge.label}
                 </span>
               </li>
             );
