@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
+import { formatQty } from '@/lib/format';
 import { recalculate, setStockLevel } from '@/lib/inventory';
 import {
   bool,
@@ -53,6 +54,11 @@ export async function updateMaterialAction(
 ): Promise<ActionResult> {
   return runAction(async () => {
     const id = str(fd, 'id');
+    const before = await prisma.rawMaterial.findUnique({
+      where: { id },
+      select: { unit: true, currentStock: true },
+    });
+
     const updated = await prisma.rawMaterial.update({
       where: { id },
       data: readMaterialFields(fd),
@@ -61,6 +67,17 @@ export async function updateMaterialAction(
     revalidatePath('/alapanyagok');
     revalidatePath(`/alapanyagok/${id}`);
     revalidatePath('/');
+
+    // A mértékegység átírása nem számolja át a készletet: 12 gombolyagból nem lesz
+    // magától 1200 gramm. Ezt szóvá kell tenni, mert némán téves riasztásokhoz vezet.
+    if (before && before.unit !== updated.unit) {
+      return (
+        `„${updated.name}” mentve. FIGYELEM: a mértékegység „${before.unit}” helyett „${updated.unit}” lett, ` +
+        `de a készlet száma változatlanul ${formatQty(before.currentStock)} maradt. ` +
+        `Ellenőrizd fent a Leltár dobozban, hogy ez az érték helyes-e ${updated.unit}-ban.`
+      );
+    }
+
     return `„${updated.name}” mentve.`;
   });
 }

@@ -37,6 +37,10 @@ export function StockForm({
             defaultValue={currentStock}
             className="field"
           />
+          <p className="mt-1 text-xs text-slate-500">
+            Az alapanyag mentett mértékegysége. Ha lent átírod, előbb mentsd az adatokat, és utána
+            javítsd itt a mennyiséget.
+          </p>
         </div>
         <div>
           <label className="label" htmlFor="note">
