@@ -8,7 +8,9 @@
  */
 import 'dotenv/config';
 
-const API_VERSION = '2025-01';
+// A Shopify egy API-verziót nagyjából egy évig támogat, ezért ezt frissen kell tartani.
+// Igazítsd ahhoz, ami az app "Webhooks API version" mezőjében szerepel.
+const API_VERSION = process.env.SHOPIFY_API_VERSION ?? '2026-07';
 const TOPICS = ['orders/create', 'orders/cancelled'];
 
 type Webhook = { id: number; topic: string; address: string };
