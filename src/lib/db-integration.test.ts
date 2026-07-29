@@ -147,6 +147,26 @@ describe('recalculate', () => {
     expect(after.reorderPoint).toBe(25);
   });
 
+  it('a leltár-korrekciót kihagyja az átlagból', async () => {
+    // Mértékegység-váltáskor vagy elgépelésnél óriási korrekciók keletkeznek.
+    // Ha ezek beleszámítanának, egyetlen javítás elrontaná az összes rendelési
+    // pontot — felfelé is, lefelé is.
+    const material = await makeMaterial({ leadTimeDays: 10, safetyBuffer: 0 });
+    await prisma.usageHistory.createMany({
+      data: [
+        { rawMaterialId: material.id, date: toDateOnly(daysAgo(10)), quantityUsed: 120, source: 'import' },
+        { rawMaterialId: material.id, date: toDateOnly(daysAgo(1)), quantityUsed: -1880, source: 'stocktake' },
+        { rawMaterialId: material.id, date: toDateOnly(daysAgo(1)), quantityUsed: 100, source: 'stocktake' },
+      ],
+    });
+
+    await recalculate([material.id]);
+
+    const after = await prisma.rawMaterial.findUniqueOrThrow({ where: { id: material.id } });
+    expect(after.avgDailyUsage).toBe(2); // 120 / 60, a leltársorok nélkül
+    expect(after.reorderPoint).toBe(20);
+  });
+
   it('az ablakon kívüli régi fogyást nem számolja bele', async () => {
     const material = await makeMaterial();
 
@@ -237,17 +257,29 @@ describe('recordStockReceipts', () => {
     expect(after.currentStock).toBe(510);
   });
 
-  it('a nulla és negatív sorokat kihagyja', async () => {
+  it('a nulla mennyiséget kihagyja', async () => {
     const material = await makeMaterial({ currentStock: 50 });
 
-    const count = await recordStockReceipts([
-      { rawMaterialId: material.id, quantity: 0 },
-      { rawMaterialId: material.id, quantity: -5 },
-    ]);
+    const count = await recordStockReceipts([{ rawMaterialId: material.id, quantity: 0 }]);
 
     expect(count).toBe(0);
     expect((await prisma.rawMaterial.findUniqueOrThrow({ where: { id: material.id } })).currentStock).toBe(50);
     expect(await prisma.stockReceipt.count()).toBe(0);
+  });
+
+  it('negatív mennyiséggel visszavonható egy téves bevételezés, fogyás nélkül', async () => {
+    const material = await makeMaterial({ currentStock: 50 });
+    await recordStockReceipts([{ rawMaterialId: material.id, quantity: 100 }]);
+
+    await recordStockReceipts([{ rawMaterialId: material.id, quantity: -100 }], {
+      note: 'téves bevételezés javítása',
+    });
+
+    expect((await prisma.rawMaterial.findUniqueOrThrow({ where: { id: material.id } })).currentStock).toBe(50);
+    // A lényeg: a visszavonás sem hoz létre fogyást, különben felfelé tolná a
+    // rendelési pontot egy meg nem történt felhasználás miatt.
+    expect(await prisma.usageHistory.count({ where: { rawMaterialId: material.id } })).toBe(0);
+    expect(await prisma.stockReceipt.count({ where: { rawMaterialId: material.id } })).toBe(2);
   });
 
   it('több alapanyagot egy tranzakcióban könyvel', async () => {

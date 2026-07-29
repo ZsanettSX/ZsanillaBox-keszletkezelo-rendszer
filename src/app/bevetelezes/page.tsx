@@ -85,11 +85,20 @@ export default async function ReceiptPage() {
         defaultDate={toInputDate(new Date())}
       />
 
-      <p className="text-xs text-slate-500">
-        A bevételezés nem számít fogyásnak, ezért nem befolyásolja az átlagfogyást és a rendelési
-        pontot. Ha nem beszerzés miatt tér el a készlet (elveszett, elrontott, leltárkülönbözet),
-        azt az alapanyag oldalán a <em>Leltár</em> dobozzal javítsd.
-      </p>
+      <div className="space-y-1 text-xs text-slate-500">
+        <p>
+          A bevételezés nem számít fogyásnak, ezért nem befolyásolja az átlagfogyást és a rendelési
+          pontot.
+        </p>
+        <p>
+          <strong>Elgépelted egy korábbi bevételezést?</strong> Írj be ide negatív számot ugyanarra
+          az alapanyagra — így a készlet visszaáll anélkül, hogy nem létező fogyás keletkezne.
+        </p>
+        <p>
+          Ha nem beszerzés miatt tér el a készlet (elveszett vagy elrontott darab, leltárkülönbözet),
+          azt az alapanyag oldalán a <em>Leltár</em> dobozzal javítsd.
+        </p>
+      </div>
     </div>
   );
 }

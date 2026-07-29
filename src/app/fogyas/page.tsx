@@ -6,7 +6,7 @@ import { UsageChart } from './usage-chart';
 import { SetupNeeded } from '@/components/setup-needed';
 import { prisma } from '@/lib/db';
 import { formatDate, formatDays, formatQty, formatQtyWithUnit } from '@/lib/format';
-import { toDateOnly } from '@/lib/inventory';
+import { DEMAND_SOURCES, toDateOnly } from '@/lib/inventory';
 import { daysOfStockLeft } from '@/lib/reorder';
 import { bucketFor, buildUsageSeries } from '@/lib/usage-series';
 
@@ -54,8 +54,15 @@ export default async function UsagePage({
   const start = new Date(end.getTime() - (rangeDays - 1) * 24 * 60 * 60 * 1000);
   const bucket = bucketFor(rangeDays);
 
+  // Csak a valódi keresletet ábrázoljuk: egy leltár-korrekció nem fogyás, és
+  // önmagában akkora tüskét adna, hogy a tényleges mintázat eltűnne mellette.
+  // A korrekciók az alapanyag oldalán, a mozgásnaplóban látszanak.
   const records = await prisma.usageHistory.findMany({
-    where: { rawMaterialId: selected.id, date: { gte: start, lte: end } },
+    where: {
+      rawMaterialId: selected.id,
+      date: { gte: start, lte: end },
+      source: { in: DEMAND_SOURCES },
+    },
     orderBy: { date: 'asc' },
     select: { date: true, quantityUsed: true },
   });

@@ -20,6 +20,18 @@ export function toDateOnly(input: Date = new Date()): Date {
 export type UsageSource = 'shopify_order' | 'import' | 'manual' | 'stocktake';
 
 /**
+ * Ezek a források jelentenek valódi, ismétlődő keresletet — az átlagfogyás és a
+ * fogyás-grafikon ezekből számol.
+ *
+ * A `stocktake` szándékosan kimarad. A leltár-korrekció egyszeri esemény: lefelé
+ * eltérés (elveszett, elrontott darab) nem jelez jövőbeli keresletet, felfelé
+ * korrekció pedig negatív fogyásként épp lehúzná az átlagot — így egy elgépelt
+ * szám vagy egy mértékegység-váltás némán elrontaná az összes rendelési pontot.
+ * A korrekció attól még bekerül a naplóba, és látszik az alapanyag oldalán.
+ */
+export const DEMAND_SOURCES: UsageSource[] = ['shopify_order', 'import', 'manual'];
+
+/**
  * Készletlevonás + fogyásnapló egy tranzakcióban.
  *
  * A `usage` map kulcsa alapanyag-id, értéke a felhasznált mennyiség (pozitív = fogyás).
@@ -87,6 +99,7 @@ export async function recalculate(materialIds?: string[]): Promise<number> {
     where: {
       date: { gte: windowStart },
       rawMaterialId: { in: materials.map((m) => m.id) },
+      source: { in: DEMAND_SOURCES },
     },
     _sum: { quantityUsed: true },
   });
@@ -215,6 +228,10 @@ export type StockReceiptInput = { rawMaterialId: string; quantity: number };
  * kerülne, lehúzná a számolt napi átlagot, és a rendszer épp akkor rendelne
  * kevesebbet, amikor a legtöbbre lenne szükség.
  *
+ * Negatív mennyiség is megengedett: ezzel javítható egy téves bevételezés vagy
+ * könyvelhető egy beszállítónak visszaküldött tétel — anélkül, hogy nem létező
+ * fogyás keletkezne a naplóban.
+ *
  * Az átlagfogyás és a rendelési pont sem a készletből számolódik, ezért itt
  * nincs szükség újraszámolásra.
  */
@@ -222,7 +239,7 @@ export async function recordStockReceipts(
   receipts: StockReceiptInput[],
   opts: { date?: Date; note?: string } = {},
 ): Promise<number> {
-  const items = receipts.filter((r) => r.quantity > 0);
+  const items = receipts.filter((r) => Number.isFinite(r.quantity) && r.quantity !== 0);
   if (items.length === 0) return 0;
 
   const date = toDateOnly(opts.date);

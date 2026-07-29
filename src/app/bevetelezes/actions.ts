@@ -26,7 +26,6 @@ export async function saveReceiptsAction(
   return runAction(async () => {
     const receipts: StockReceiptInput[] = [];
     const invalidIds: string[] = [];
-    const negativeIds: string[] = [];
 
     for (const [key, value] of fd.entries()) {
       if (!key.startsWith(QTY_PREFIX) || typeof value !== 'string') continue;
@@ -36,22 +35,16 @@ export async function saveReceiptsAction(
       const rawMaterialId = key.slice(QTY_PREFIX.length);
       const quantity = parseQuantity(text);
 
+      // Negatív is jó: azzal vonható vissza egy téves bevételezés anélkül, hogy
+      // nem létező fogyás kerülne a naplóba.
       if (!Number.isFinite(quantity)) invalidIds.push(rawMaterialId);
-      else if (quantity < 0) negativeIds.push(rawMaterialId);
-      else if (quantity > 0) receipts.push({ rawMaterialId, quantity });
+      else if (quantity !== 0) receipts.push({ rawMaterialId, quantity });
     }
 
-    // A hibás sorokat névvel jelezzük vissza, hogy ne kelljen keresgélni.
-    if (invalidIds.length > 0 || negativeIds.length > 0) {
-      const names = await nameLookup([...invalidIds, ...negativeIds]);
-      if (invalidIds.length > 0) {
-        throw new FormError(
-          `Ezekbe a sorokba számot írj: ${invalidIds.map((id) => names.get(id) ?? id).join(', ')}.`,
-        );
-      }
+    if (invalidIds.length > 0) {
+      const names = await nameLookup(invalidIds);
       throw new FormError(
-        `A bevételezés csak pozitív mennyiséget fogad: ${negativeIds.map((id) => names.get(id) ?? id).join(', ')}. ` +
-          `Ha lefelé kell javítanod a készletet, használd az alapanyag oldalán a Leltár dobozt.`,
+        `Ezekbe a sorokba számot írj: ${invalidIds.map((id) => names.get(id) ?? id).join(', ')}.`,
       );
     }
 

@@ -54,6 +54,15 @@ export function StockForm({
           />
         </div>
       </div>
+      <p className="text-xs text-slate-500">
+        A leltár arra való, hogy a <strong>ténylegesen megszámolt</strong> mennyiséget rögzítsd. A
+        különbözet a mozgásnaplóba kerül, de nem befolyásolja az átlagfogyást — egy elveszett darab
+        vagy egy elgépelt szám nem jelez jövőbeli keresletet. Ha új készletet vettél, azt a{' '}
+        <a href="/bevetelezes" className="text-rose-600 underline">
+          Bevételezés
+        </a>{' '}
+        oldalon rögzítsd.
+      </p>
       <SubmitButton className="btn-secondary">Készlet frissítése</SubmitButton>
     </form>
   );
