@@ -32,8 +32,13 @@ function ChartTooltip({ active, payload, label }: TooltipContentProps) {
   );
 }
 
+/** Ennél több sáv olvashatatlanul hosszú oldalt adna; a többi a táblázatban látszik. */
+const MAX_BARS = 12;
+
 export function SalesChart({ rows }: { rows: ProductSalesRow[] }) {
-  const data = rows.filter((r) => r.quantity > 0);
+  const sold = rows.filter((r) => r.quantity > 0);
+  const data = sold.slice(0, MAX_BARS);
+  const hidden = sold.length - data.length;
 
   if (data.length === 0) {
     return (
@@ -48,6 +53,7 @@ export function SalesChart({ rows }: { rows: ProductSalesRow[] }) {
   const height = Math.max(200, data.length * 44 + 40);
 
   return (
+    <>
     <div style={{ height }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
@@ -84,5 +90,12 @@ export function SalesChart({ rows }: { rows: ProductSalesRow[] }) {
         </BarChart>
       </ResponsiveContainer>
     </div>
+    {hidden > 0 && (
+      <p className="mt-3 text-xs text-slate-500">
+        A grafikonon a legtöbbet fogyó {MAX_BARS} termék látszik. További {hidden} termékből is
+        fogyott ebben az időszakban — azok a lenti táblázatban szerepelnek.
+      </p>
+    )}
+    </>
   );
 }

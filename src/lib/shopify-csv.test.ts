@@ -101,4 +101,17 @@ describe('titleVariants', () => {
   it('elválasztó nélkül csak önmagát adja', () => {
     expect(titleVariants('Bagoly')).toEqual(['Bagoly']);
   });
+
+  it('lehántja a zárójeles előtagot', () => {
+    // Az előrendelhető változat ugyanazt a terméket jelenti.
+    expect(titleVariants('(ELŐRENDELHETŐ) Fekete Foltos Cica | ZsanillaBox')).toContain(
+      'Fekete Foltos Cica | ZsanillaBox',
+    );
+  });
+
+  it('előtagot és variánst együtt is kezel', () => {
+    const variants = titleVariants('(ÚJ) Maci | ZsanillaBox - Rózsaszín');
+    expect(variants[0]).toBe('(ÚJ) Maci | ZsanillaBox - Rózsaszín');
+    expect(variants).toContain('Maci | ZsanillaBox');
+  });
 });

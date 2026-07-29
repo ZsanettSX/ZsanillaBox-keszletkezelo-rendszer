@@ -105,16 +105,26 @@ export function parseShopifyOrderCsv(rows: CsvRow[]): ParsedCsv {
 }
 
 /**
- * A Shopify tételnév gyakran variánst is tartalmaz ("Bagoly ZsanillaBox - Kék").
- * A termékhez párosításhoz a variáns nélküli alakot is megpróbáljuk.
+ * A Shopify tételnév gyakran variánst is tartalmaz ("Bagoly ZsanillaBox - Kék"),
+ * és előfordul zárójeles előtag is ("(ELŐRENDELHETŐ) Bagoly | ZsanillaBox").
+ * A párosításhoz ezeket lehántott alakban is megpróbáljuk.
+ *
+ * A teljes név mindig az első a listában, tehát a pontos egyezés elsőbbséget élvez —
+ * a rövidített alakok csak tartalékként jönnek szóba.
  */
 export function titleVariants(title: string): string[] {
   const trimmed = title.trim();
   const variants = new Set<string>([trimmed]);
 
-  for (const separator of [' - ', ' – ', ' — ', ' / ']) {
-    const index = trimmed.indexOf(separator);
-    if (index > 0) variants.add(trimmed.slice(0, index).trim());
+  // Zárójeles előtag, pl. "(ELŐRENDELHETŐ) " — ugyanaz a termék, más címkével.
+  const withoutPrefix = trimmed.replace(/^\([^)]*\)\s*/, '').trim();
+  if (withoutPrefix && withoutPrefix !== trimmed) variants.add(withoutPrefix);
+
+  for (const base of [...variants]) {
+    for (const separator of [' - ', ' – ', ' — ', ' / ']) {
+      const index = base.indexOf(separator);
+      if (index > 0) variants.add(base.slice(0, index).trim());
+    }
   }
 
   return [...variants];
