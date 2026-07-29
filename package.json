@@ -1,0 +1,45 @@
+{
+  "name": "zsanillabox-keszletkezelo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:local": "node -e \"require('fs').mkdirSync('data',{recursive:true})\" && pglite-server --db=./data/pgdata --port=5433 --max-connections=20",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts",
+    "import:shopify": "tsx scripts/import-shopify-csv.ts",
+    "shopify:register-webhook": "tsx scripts/register-shopify-webhook.ts",
+    "recalc": "tsx scripts/recalc.ts",
+    "alert:daily": "tsx scripts/daily-alert.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.2",
+    "csv-parse": "^5.6.0",
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "recharts": "^3.2.1",
+    "resend": "^6.1.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.16",
+    "@electric-sql/pglite-socket": "^0.0.22",
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/node": "^22.18.6",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "dotenv": "^17.2.2",
+    "pglite-prisma-adapter": "^0.6.1",
+    "prisma": "^6.16.2",
+    "tailwindcss": "^4.1.13",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

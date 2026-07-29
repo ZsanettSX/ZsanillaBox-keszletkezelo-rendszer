@@ -1,0 +1,139 @@
+// ZsanillaBox alapanyag-készletkezelő — adatmodell
+// A mennyiségek Float-ok: gramm/darab/gombolyag nagyságrendben a lebegőpontos
+// pontatlanság nagyságrendekkel a mérési hiba alatt van.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Vercelen szerver nélküli függvények futnak: minden hívás új kapcsolatot nyitna,
+  // ezért a DATABASE_URL a pooler címére mutat (Neon: a "-pooler" végű host).
+  url      = env("DATABASE_URL")
+  // A migrációk viszont nem mennek át pooleren — azoknak közvetlen kapcsolat kell.
+  directUrl = env("DIRECT_URL")
+}
+
+/// Alapanyagok (fonal, biztonsági szem, horgolótű, tömőanyag, ...)
+model RawMaterial {
+  id           String  @id @default(uuid())
+  name         String
+  /// mértékegység: "gombolyag", "db", "gramm", ...
+  unit         String  @default("db")
+  currentStock Float   @default(0)
+  supplierName String?
+  supplierUrl  String?
+
+  /// Beszállítói átfutási idő napokban (kézzel megadva)
+  leadTimeDays Int   @default(14)
+  /// Fix biztonsági puffer az alapanyag mértékegységében
+  safetyBuffer Float @default(0)
+  /// Extra tartaléknapok. Ha null, a globális beállítás érvényes.
+  reserveDays  Int?
+  /// Legkisebb rendelhető tétel (pl. fonalat csak 10-es kiszerelésben lehet). 0 = nincs kerekítés.
+  orderMultiple Float @default(0)
+
+  /// Számolt mezők — ne szerkeszd kézzel, a recalculate() írja
+  avgDailyUsage Float @default(0)
+  reorderPoint  Float @default(0)
+
+  active      Boolean  @default(true)
+  notes       String?
+  lastUpdated DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  recipeItems  RecipeItem[]
+  usageHistory UsageHistory[]
+  reorderLogs  ReorderLog[]
+
+  @@index([active])
+  @@map("raw_materials")
+}
+
+/// ZsanillaBox termékek (amit a Shopify-on árulunk)
+model Product {
+  id               String  @id @default(uuid())
+  /// A Shopify product ID (a webhook line_item.product_id ezzel egyezik)
+  shopifyProductId String? @unique
+  name             String
+  sku              String?
+  active           Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipeItems RecipeItem[]
+
+  @@index([sku])
+  @@map("products")
+}
+
+/// BOM — egy termék egy darabjához mennyi kell az adott alapanyagból
+model RecipeItem {
+  id              String @id @default(uuid())
+  productId       String
+  rawMaterialId   String
+  quantityPerUnit Float
+
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rawMaterial RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, rawMaterialId])
+  @@index([rawMaterialId])
+  @@map("recipes")
+}
+
+/// Fogyás napló. Pozitív quantityUsed = felhasználás, negatív = visszavételezés/korrekció felfelé.
+model UsageHistory {
+  id            String   @id @default(uuid())
+  rawMaterialId String
+  date          DateTime @db.Date
+  quantityUsed  Float
+  /// "shopify_order" | "import" | "manual" | "stocktake"
+  source        String
+  /// Shopify rendelésszám, import batch azonosító vagy szabad szöveges megjegyzés
+  reference     String?
+  createdAt     DateTime @default(now())
+
+  rawMaterial RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@index([rawMaterialId, date])
+  @@index([date])
+  @@map("usage_history")
+}
+
+/// Kiküldött riasztások — hogy ne spammeljen duplán
+model ReorderLog {
+  id                String   @id @default(uuid())
+  rawMaterialId     String
+  suggestedQuantity Float
+  /// Mennyi volt a készlet a küldés pillanatában (ehhez képest nézzük, csökkent-e azóta)
+  stockAtSend       Float
+  sentAt            DateTime @default(now())
+
+  rawMaterial RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@index([rawMaterialId, sentAt])
+  @@map("reorder_log")
+}
+
+/// Feldolgozott Shopify rendelések — a webhook idempotenciájához
+/// (a Shopify újraküldi a webhookot, ha nem kap 200-at)
+model ProcessedOrder {
+  id             String   @id @default(uuid())
+  shopifyOrderId String   @unique
+  orderName      String?
+  processedAt    DateTime @default(now())
+
+  @@map("processed_orders")
+}
+
+/// Globális beállítások kulcs-érték párban (tartaléknapok, fogyás-ablak, stb.)
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

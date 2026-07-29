@@ -1,0 +1,2 @@
+# Ez a fajl a migraciok adatbazis-szolgaltatojat rogziti. Ne szerkeszd kezzel.
+provider = "postgresql"

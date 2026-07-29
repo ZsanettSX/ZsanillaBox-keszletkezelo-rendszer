@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-family: var(--font-sans);
+}
+
+/*
+ * Közös űrlap- és gombstílusok.
+ * A Tailwind v4-ben az @apply csak valódi utilityket fogad, saját osztályt nem —
+ * ezért a gombok alapstílusa @utility-ként van kiemelve, hogy a variánsok
+ * hivatkozhassanak rá ismétlés nélkül.
+ */
+@utility btn {
+  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 py-2
+         text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+@layer components {
+  .field {
+    @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm
+           outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-200
+           disabled:bg-slate-100 disabled:text-slate-500;
+  }
+
+  .label {
+    @apply mb-1 block text-xs font-medium text-slate-600;
+  }
+
+  .btn-primary {
+    @apply btn bg-rose-600 text-white hover:bg-rose-700;
+  }
+
+  .btn-secondary {
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  }
+
+  .btn-danger {
+    @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50;
+  }
+
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  .th {
+    @apply px-4 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase;
+  }
+
+  .td {
+    @apply px-4 py-3 text-sm text-slate-700;
+  }
+}

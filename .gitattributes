@@ -1,0 +1,3 @@
+# A repóban egységesen LF sorvégek legyenek — a Vercel Linuxon buildel,
+# a Windows munkamásolat pedig továbbra is CRLF-et kap.
+* text=auto eol=lf
