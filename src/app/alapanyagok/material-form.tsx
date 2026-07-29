@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { Feedback } from '@/components/feedback';
 import { SubmitButton } from '@/components/submit-button';
 import type { ActionResult } from '@/lib/form';
@@ -47,6 +47,10 @@ export function MaterialForm({
   includeStock?: boolean;
 }) {
   const [state, formAction] = useActionState(action, null);
+  // A mértékegység vezérelt mező, hogy a mennyiségi mezők címkéje azonnal
+  // kövesse — különben egy "gramm" alapanyagnál is "db" állna a puffernél.
+  const [unit, setUnit] = useState(values.unit);
+  const unitLabel = unit.trim() || 'egység';
 
   return (
     <form action={formAction} className="space-y-4">
@@ -77,16 +81,20 @@ export function MaterialForm({
             id="unit"
             name="unit"
             required
-            defaultValue={values.unit}
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
             placeholder="gombolyag / db / gramm"
             className="field"
           />
+          <p className="mt-1 text-xs text-slate-500">
+            Amiben számolod. Minden lenti mennyiség ebben értendő.
+          </p>
         </div>
 
         {includeStock && (
           <div>
             <label className="label" htmlFor="currentStock">
-              Jelenlegi készlet
+              Jelenlegi készlet ({unitLabel})
             </label>
             <input
               id="currentStock"
@@ -143,7 +151,7 @@ export function MaterialForm({
 
         <div>
           <label className="label" htmlFor="safetyBuffer">
-            Biztonsági puffer ({values.unit || 'egység'})
+            Biztonsági puffer ({unitLabel})
           </label>
           <input
             id="safetyBuffer"
@@ -173,7 +181,7 @@ export function MaterialForm({
 
         <div>
           <label className="label" htmlFor="orderMultiple">
-            Rendelési egység
+            Rendelési egység ({unitLabel})
           </label>
           <input
             id="orderMultiple"
@@ -183,7 +191,8 @@ export function MaterialForm({
             className="field"
           />
           <p className="mt-1 text-xs text-slate-500">
-            Ha csak kiszerelésben lehet rendelni (pl. 10-esével), írd be ide. 0 = nincs kerekítés.
+            Ha csak kiszerelésben lehet rendelni, írd be egy csomag méretét (pl. 1000 grammos zsák
+            esetén 1000). A javaslatot erre kerekíti felfelé. 0 = nincs kerekítés.
           </p>
         </div>
 
