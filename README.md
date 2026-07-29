@@ -109,44 +109,63 @@ Shopify admin → **Orders** → jobb felül **Export** → *All orders* / kív�
 
 ## 3. Shopify integráció
 
-### 3.1 Custom app létrehozása
+A webhook regisztrálására két út van. **A titok, amivel a Shopify aláírja a hívásokat,
+a két útnál más** — ez a leggyakoribb hibaforrás. Ha nem egyezik, a rendszer minden
+bejövő rendelést elutasít (a naplóban `invalid_hmac`).
 
-1. Shopify admin → **Settings → Apps and sales channels → Develop apps → Create an app**
-2. **Configure Admin API scopes** → engedélyezd: `read_orders`, `read_products`
-3. **Install app** → másold ki az **Admin API access token**-t (`shpat_…`)
-4. Az **API secret key** értékét is másold ki — ezzel ellenőrizzük a webhookok aláírását
+| | Ki hozza létre a webhookot | Mi lesz a `SHOPIFY_WEBHOOK_SECRET` | Kell Admin token? |
+|---|---|---|---|
+| **A. Admin felület** | te, kattintgatva | a Webhooks oldal alján kiírt aláíró titok | nem |
+| **B. Custom app** | a `shopify:register-webhook` script | a custom app **API secret key**-e | igen |
 
-A `.env`-be:
+### 3.1 A. út — webhook a Shopify adminból (egyszerűbb)
 
-```
-SHOPIFY_SHOP_DOMAIN="zsanillabox.myshopify.com"
-SHOPIFY_ADMIN_ACCESS_TOKEN="shpat_..."
-SHOPIFY_WEBHOOK_SECRET="<API secret key>"
-APP_URL="https://<a-deployolt-cimed>"
-```
+Ehhez nem kell custom app és nem kell API token.
 
-> A `SHOPIFY_WEBHOOK_SECRET` nélkül a rendszer **minden** bejövő webhookot elutasít.
-> Ez szándékos: aláírás-ellenőrzés nélkül bárki hamisíthatna készletmozgást.
+1. Shopify admin → **Settings → Notifications**, görgess le a **Webhooks** részhez.
+2. **Create webhook**:
+   - Event: **Order creation** · Format: **JSON**
+   - URL: `<APP_URL>/api/webhooks/shopify/orders`
+3. Vedd fel még egyszer, most **Order cancellation** eseményre, ugyanarra az URL-re.
+   (Ez teszi vissza a készletet, ha egy rendelést sztornóznak.)
+4. A Webhooks szakasz alján van egy sor, hogy a webhookokat milyen titokkal írja alá a
+   Shopify — **ez** kerül a `SHOPIFY_WEBHOOK_SECRET` változóba.
 
-### 3.2 A termék-azonosítók összekötése
+### 3.2 B. út — custom app (ha scripttel akarod kezelni)
 
-A webhook a Shopify `product_id` alapján találja meg a receptet. Az azonosítót a Shopify
-adminban a termék URL-jének végén látod:
-`…/admin/products/**9412563987456**` → ezt írd a termék *Shopify termék-azonosító*
-mezőjébe. Amelyik terméknél ez hiányzik, arról a Termékek oldal figyelmeztet.
-
-### 3.3 Webhook regisztráció
-
-Deploy után (lásd 5. pont):
+1. Shopify admin → **Settings → Apps and sales channels → Develop apps**
+   (első alkalommal: *Allow custom app development* → megerősítés) → **Create an app**
+2. **Configuration → Admin API integration → Configure** → engedélyezd: `read_orders`,
+   `read_products` → **Save**
+3. **API credentials → Install app** → az **Admin API access token** (`shpat_…`)
+   **csak egyszer** jelenik meg, azonnal másold ki.
+4. Ugyanezen a lapon lejjebb az **API secret key** — ez lesz a `SHOPIFY_WEBHOOK_SECRET`.
+   (Ne az *API key*-t vedd, hanem az *API secret key*-t.)
+5. A `.env`-be, majd:
 
 ```bash
 npm run shopify:register-webhook
 ```
 
 Ez az `orders/create` és `orders/cancelled` eseményeket regisztrálja a
-`<APP_URL>/api/webhooks/shopify/orders` címre. A már meglévő regisztrációt nem duplikálja.
+`<APP_URL>/api/webhooks/shopify/orders` címre, és a meglévőt nem duplikálja.
 
-Kézzel is beállítható: Shopify admin → **Settings → Notifications → Webhooks**.
+> **Nem elég csak a titkot beírni.** A webhookot regisztrálni is kell — a titok csak
+> ellenőrzésre szolgál. Ha a rendszer nem kap semmit, a webhook hiányzik; ha
+> `invalid_hmac`-ot naplóz, a titok nem stimmel.
+
+### 3.3 A termék-azonosítók összekötése
+
+A webhook a Shopify `product_id` alapján találja meg a receptet. Az azonosítót a Shopify
+adminban a termék URL-jének végén látod:
+`…/admin/products/**9412563987456**` → ezt írd a termék *Shopify termék-azonosító*
+mezőjébe. Amelyik terméknél ez hiányzik, arról a Termékek oldal figyelmeztet.
+
+### 3.4 Mire NEM kell az Admin token
+
+A történeti import a Shopify **CSV exportjából** dolgozik (2. fejezet), nem az API-ból.
+Ha az A. utat választod, az `SHOPIFY_ADMIN_ACCESS_TOKEN` változót nyugodtan üresen
+hagyhatod — a rendszer működéséhez nem kell.
 
 ---
 
