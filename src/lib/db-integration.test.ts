@@ -63,6 +63,8 @@ const {
   setStockLevel,
   toDateOnly,
 } = await import('./inventory');
+const { recordProductSales } = await import('./inventory');
+const { getProductSalesStats } = await import('./stats');
 const { runDailyAlert } = await import('./alerts');
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
@@ -70,6 +72,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 async function resetDatabase() {
   await prisma.usageHistory.deleteMany();
   await prisma.stockReceipt.deleteMany();
+  await prisma.productSale.deleteMany();
   await prisma.reorderLog.deleteMany();
   await prisma.recipeItem.deleteMany();
   await prisma.processedOrder.deleteMany();
@@ -379,6 +382,60 @@ describe('runDailyAlert', () => {
   });
 });
 
+describe('termékstatisztika', () => {
+  async function makeProduct(name: string, shopifyProductId?: string) {
+    const yarn = await makeMaterial({ name: `${name} fonala` });
+    return prisma.product.create({
+      data: {
+        name,
+        shopifyProductId: shopifyProductId ?? null,
+        recipeItems: { create: [{ rawMaterialId: yarn.id, quantityPerUnit: 1 }] },
+      },
+    });
+  }
+
+  it('összegzi az időszak eladásait és részesedést számol', async () => {
+    const a = await makeProduct('Bagoly | ZsanillaBox');
+    const b = await makeProduct('Maci | ZsanillaBox');
+
+    await recordProductSales([{ productId: a.id, quantity: 30 }], {
+      date: daysAgo(5),
+      source: 'import',
+    });
+    await recordProductSales([{ productId: b.id, quantity: 10 }], {
+      date: daysAgo(3),
+      source: 'import',
+    });
+
+    const { rows, total } = await getProductSalesStats(toDateOnly(daysAgo(30)), toDateOnly());
+
+    expect(total).toBe(40);
+    expect(rows[0]).toMatchObject({ name: 'Bagoly | ZsanillaBox', quantity: 30, share: 0.75 });
+    expect(rows[0].shortName).toBe('Bagoly');
+    expect(rows[1].quantity).toBe(10);
+  });
+
+  it('az időszakon kívüli eladást nem számolja bele', async () => {
+    const a = await makeProduct('Bagoly | ZsanillaBox');
+    await recordProductSales([{ productId: a.id, quantity: 99 }], {
+      date: daysAgo(200),
+      source: 'import',
+    });
+
+    const { total } = await getProductSalesStats(toDateOnly(daysAgo(30)), toDateOnly());
+    expect(total).toBe(0);
+  });
+
+  it('az eladás nélküli terméket is felsorolja nullával', async () => {
+    await makeProduct('Nyuszi | ZsanillaBox');
+
+    const { rows } = await getProductSalesStats(toDateOnly(daysAgo(30)), toDateOnly());
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ quantity: 0, share: 0 });
+  });
+});
+
 describe('Shopify webhook endpoint', () => {
   async function seedProduct() {
     const yarn = await makeMaterial({ name: 'Fonal', currentStock: 100 });
@@ -461,6 +518,19 @@ describe('Shopify webhook endpoint', () => {
     await POST(makeRequest(order, { topic: 'orders/cancelled' }));
 
     expect((await prisma.rawMaterial.findUniqueOrThrow({ where: { id: yarn.id } })).currentStock).toBe(100);
+  });
+
+  it('rögzíti a termékszintű eladást, és sztornónál kinullázza', async () => {
+    await seedProduct();
+    process.env.SHOPIFY_WEBHOOK_SECRET = WEBHOOK_SECRET;
+    const { POST } = await import('@/app/api/webhooks/shopify/orders/route');
+
+    await POST(makeRequest(order));
+    expect((await prisma.productSale.aggregate({ _sum: { quantity: true } }))._sum.quantity).toBe(3);
+
+    await POST(makeRequest(order, { topic: 'orders/cancelled' }));
+    // A sztornó negatív sort ír, így az összegzés a nettó eladást adja.
+    expect((await prisma.productSale.aggregate({ _sum: { quantity: true } }))._sum.quantity).toBe(0);
   });
 
   it('nem tesz vissza készletet olyan rendelésre, amit sosem vontunk le', async () => {

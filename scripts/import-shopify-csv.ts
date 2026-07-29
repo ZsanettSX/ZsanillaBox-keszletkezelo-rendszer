@@ -105,6 +105,8 @@ async function main() {
   const noRecipe = new Map<string, number>();
   /** kulcs: "YYYY-MM-DD|rawMaterialId" → mennyiség */
   const aggregated = new Map<string, number>();
+  /** kulcs: "YYYY-MM-DD|productId" → eladott darab (a termékstatisztikához) */
+  const productAggregated = new Map<string, number>();
   let matchedLines = 0;
 
   for (const line of importableLines) {
@@ -133,6 +135,9 @@ async function main() {
       const key = `${dateKey}|${rawMaterialId}`;
       aggregated.set(key, (aggregated.get(key) ?? 0) + quantity);
     }
+
+    const productKey = `${dateKey}|${product.id}`;
+    productAggregated.set(productKey, (productAggregated.get(productKey) ?? 0) + line.quantity);
   }
 
   console.log(`\nPárosított tétel: ${matchedLines} / ${importableLines.length}`);
@@ -165,12 +170,24 @@ async function main() {
     };
   });
 
+  const saleRecords = [...productAggregated.entries()].map(([key, quantity]) => {
+    const [dateKey, productId] = key.split('|');
+    return {
+      productId,
+      date: new Date(`${dateKey}T00:00:00.000Z`),
+      quantity: roundQty(quantity, 4),
+      source: 'import',
+      reference: 'Shopify történeti export',
+    };
+  });
+
   const dates = records.map((r) => r.date.getTime());
   console.log(
     `\nÍrandó fogyás-sorok: ${records.length} db, ` +
       `${new Date(Math.min(...dates)).toISOString().slice(0, 10)} – ` +
       `${new Date(Math.max(...dates)).toISOString().slice(0, 10)} között.`,
   );
+  console.log(`Írandó termék-eladás sorok (statisztikához): ${saleRecords.length} db.`);
 
   if (dryRun) {
     console.log('\n✓ Próbafutás (--dry-run): semmit nem írtam az adatbázisba.\n');
@@ -187,13 +204,19 @@ async function main() {
     );
   }
 
-  if (existing > 0 && replace) {
-    const deleted = await prisma.usageHistory.deleteMany({ where: { source: 'import' } });
-    console.log(`Törölve ${deleted.count} korábbi import sor.`);
+  if (replace) {
+    const deletedUsage = await prisma.usageHistory.deleteMany({ where: { source: 'import' } });
+    const deletedSales = await prisma.productSale.deleteMany({ where: { source: 'import' } });
+    console.log(
+      `Törölve ${deletedUsage.count} korábbi import fogyás-sor és ${deletedSales.count} termék-eladás sor.`,
+    );
   }
 
   await prisma.usageHistory.createMany({ data: records });
   console.log(`✓ Beírva ${records.length} fogyás-sor.`);
+
+  await prisma.productSale.createMany({ data: saleRecords });
+  console.log(`✓ Beírva ${saleRecords.length} termék-eladás sor.`);
 
   if (applyStock) {
     const totals = new Map<string, number>();

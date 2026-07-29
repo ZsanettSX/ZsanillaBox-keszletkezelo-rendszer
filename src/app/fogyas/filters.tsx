@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
-import { RANGES } from './ranges';
+import { RANGES } from '@/lib/ranges';
 
 export type MaterialOption = { id: string; name: string };
 

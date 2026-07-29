@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { UsageFilters } from './filters';
-import { DEFAULT_RANGE, RANGES } from './ranges';
 import { UsageChart } from './usage-chart';
+import { resolveRangeDays } from '@/lib/ranges';
 import { SetupNeeded } from '@/components/setup-needed';
 import { prisma } from '@/lib/db';
 import { formatDate, formatDays, formatQty, formatQtyWithUnit } from '@/lib/format';
@@ -46,9 +46,7 @@ export default async function UsagePage({
   }
 
   const selected = materials.find((m) => m.id === params.materialId) ?? materials[0];
-  const rangeDays = RANGES.some((r) => r.value === params.range)
-    ? Number(params.range)
-    : DEFAULT_RANGE;
+  const rangeDays = resolveRangeDays(params.range);
 
   const end = toDateOnly();
   const start = new Date(end.getTime() - (rangeDays - 1) * 24 * 60 * 60 * 1000);

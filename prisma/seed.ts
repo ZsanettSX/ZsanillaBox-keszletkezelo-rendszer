@@ -110,7 +110,11 @@ async function main() {
   }
   console.log(`✓ ${MATERIALS.length} alapanyag létrehozva.`);
 
-  const productRecipes: Array<{ dailyRate: number; items: Array<{ rawMaterialId: string; quantityPerUnit: number }> }> = [];
+  const productRecipes: Array<{
+    id: string;
+    dailyRate: number;
+    items: Array<{ rawMaterialId: string; quantityPerUnit: number }>;
+  }> = [];
 
   for (const product of PRODUCTS) {
     const items = product.recipe.map(([materialName, quantity]) => ({
@@ -118,7 +122,7 @@ async function main() {
       quantityPerUnit: quantity,
     }));
 
-    await prisma.product.create({
+    const created = await prisma.product.create({
       data: {
         name: product.name,
         sku: product.sku,
@@ -127,13 +131,14 @@ async function main() {
       },
     });
 
-    productRecipes.push({ dailyRate: product.dailyRate, items });
+    productRecipes.push({ id: created.id, dailyRate: product.dailyRate, items });
   }
   console.log(`✓ ${PRODUCTS.length} termék létrehozva recepttel.`);
 
   // ── Fogyástörténet: 90 nap, hétvégén erősebb forgalommal ────────────────────
   const random = makeRandom(20260729);
   const records: Array<{ rawMaterialId: string; date: Date; quantityUsed: number; source: string; reference: string }> = [];
+  const sales: Array<{ productId: string; date: Date; quantity: number; source: string; reference: string }> = [];
   const today = toDateOnly();
 
   for (let daysAgo = HISTORY_DAYS; daysAgo >= 1; daysAgo--) {
@@ -145,6 +150,14 @@ async function main() {
       // Egész darabszám: a törtrészt valószínűségként kezeljük.
       const sold = Math.floor(expected) + (random() < expected % 1 ? 1 : 0);
       if (sold === 0) continue;
+
+      sales.push({
+        productId: product.id,
+        date,
+        quantity: sold,
+        source: 'import',
+        reference: 'Mintaadat',
+      });
 
       for (const item of product.items) {
         records.push({
@@ -159,7 +172,10 @@ async function main() {
   }
 
   await prisma.usageHistory.createMany({ data: records });
-  console.log(`✓ ${records.length} fogyás-sor létrehozva (${HISTORY_DAYS} nap).`);
+  await prisma.productSale.createMany({ data: sales });
+  console.log(
+    `✓ ${records.length} fogyás-sor és ${sales.length} termék-eladás létrehozva (${HISTORY_DAYS} nap).`,
+  );
 
   const count = await recalculate();
   console.log(`✓ Újraszámolva ${count} alapanyag.\n`);

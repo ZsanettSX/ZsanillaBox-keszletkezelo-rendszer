@@ -263,6 +263,37 @@ export async function recordStockReceipts(
   return items.length;
 }
 
+export type ProductSaleInput = { productId: string; quantity: number };
+
+/**
+ * Termékszintű eladás rögzítése a statisztikához.
+ *
+ * A fogyásnapló csak alapanyag szinten létezik, mert a rendelést azonnal receptre
+ * bontjuk — abból már nem derül ki, melyik termék fogyott. Sztornónál negatív
+ * mennyiség kerül ide, így az összegzés a nettó eladást adja.
+ */
+export async function recordProductSales(
+  sales: ProductSaleInput[],
+  opts: { date?: Date; source: 'shopify_order' | 'import'; reference?: string },
+  tx?: Prisma.TransactionClient,
+): Promise<void> {
+  const items = sales.filter((s) => Number.isFinite(s.quantity) && s.quantity !== 0);
+  if (items.length === 0) return;
+
+  const date = toDateOnly(opts.date);
+  const db = tx ?? prisma;
+
+  await db.productSale.createMany({
+    data: items.map((s) => ({
+      productId: s.productId,
+      date,
+      quantity: s.quantity,
+      source: opts.source,
+      reference: opts.reference ?? null,
+    })),
+  });
+}
+
 export type ShopifyOrderLine = { shopifyProductId: string; quantity: number };
 
 /**

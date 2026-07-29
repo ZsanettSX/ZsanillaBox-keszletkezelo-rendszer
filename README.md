@@ -123,6 +123,16 @@ Ha nem beszerzés miatt tér el a készlet — elveszett, elrontott darab, lelt�
 azt az alapanyag saját oldalán a **Leltár** dobozzal javítsd. Az a különbözetet
 fogyásként könyveli, ami ott helyes.
 
+### Statisztika: melyik termékből mennyi fogyott
+
+A **Statisztika** oldal termékenként mutatja az eladott darabszámot a választott
+időszakra, rangsorolva és részesedéssel. A sztornózott rendelések negatív előjellel
+szerepelnek, tehát a nettó eladás látszik.
+
+Ez külön nyilvántartásból dolgozik: a rendelést a rendszer azonnal receptre bontja, és
+abból már nem lehet visszafejteni, melyik termék okozta a fogyást. A történeti adatot az
+import tölti fel, az újakat pedig az élő webhook rögzíti.
+
 ### A Shopify export letöltése
 
 Shopify admin → **Orders** → jobb felül **Export** → *All orders* / kívánt időszak →
@@ -380,6 +390,7 @@ src/lib/reorder.ts            a számítási logika (tiszta függvények)
 src/lib/inventory.ts          adatbázis-műveletek: levonás, bevételezés, újraszámolás
 src/lib/shopify.ts            webhook HMAC-ellenőrzés és rendelés-értelmezés
 src/lib/shopify-csv.ts        a történeti export feldolgozása
+src/lib/stats.ts              termékenkénti eladás-statisztika
 src/lib/alerts.ts             a napi riasztás folyamata
 src/lib/email.ts              Resend integráció és email-sablon
 

@@ -14,6 +14,7 @@ const NAV = [
   { href: '/alapanyagok', label: 'Alapanyagok' },
   { href: '/termekek', label: 'Termékek & receptek' },
   { href: '/fogyas', label: 'Fogyás' },
+  { href: '/statisztika', label: 'Statisztika' },
   { href: '/beallitasok', label: 'Beállítások' },
 ];
 

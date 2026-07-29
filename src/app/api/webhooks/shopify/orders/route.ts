@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { applyUsage, recalculate, type UsageSource } from '@/lib/inventory';
+import { applyUsage, recalculate, recordProductSales, type UsageSource } from '@/lib/inventory';
 import { explodeBom } from '@/lib/reorder';
 import { orderDate, parseOrderLines, verifyShopifyHmac, type ShopifyOrderPayload } from '@/lib/shopify';
 
@@ -79,13 +79,16 @@ export async function POST(request: Request) {
       .map((l) => `${l.title ?? l.shopifyProductId} (${l.shopifyProductId})`);
 
     const sign = isCancellation ? -1 : 1;
+    // Termékszintű tételek: ezekből lesz a recept-robbantás és a statisztika is.
+    const productLines = lines
+      .filter((l) => byShopifyId.has(l.shopifyProductId))
+      .map((l) => ({
+        productId: byShopifyId.get(l.shopifyProductId)!.id,
+        quantity: l.quantity * sign,
+      }));
+
     const usage = explodeBom(
-      lines
-        .filter((l) => byShopifyId.has(l.shopifyProductId))
-        .map((l) => ({
-          productId: byShopifyId.get(l.shopifyProductId)!.id,
-          quantity: l.quantity * sign,
-        })),
+      productLines,
       products.flatMap((p) =>
         p.recipeItems.map((r) => ({
           productId: p.id,
@@ -105,14 +108,22 @@ export async function POST(request: Request) {
           orderName: payload.name ?? null,
         },
       });
+      const reference = isCancellation
+        ? `Sztornó: ${payload.name ?? orderId}`
+        : (payload.name ?? orderId);
+
+      await recordProductSales(
+        productLines,
+        { date: orderDate(payload), source: 'shopify_order', reference },
+        tx,
+      );
+
       await applyUsage(
         usage,
         {
           date: orderDate(payload),
           source: 'shopify_order' satisfies UsageSource,
-          reference: isCancellation
-            ? `Sztornó: ${payload.name ?? orderId}`
-            : (payload.name ?? orderId),
+          reference,
         },
         tx,
       );

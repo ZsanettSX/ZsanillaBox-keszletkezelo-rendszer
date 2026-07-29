@@ -85,9 +85,35 @@ model Product {
   updatedAt DateTime @updatedAt
 
   recipeItems RecipeItem[]
+  sales       ProductSale[]
 
   @@index([sku])
   @@map("products")
+}
+
+/// Termékszintű eladás: melyik termékből mennyi fogyott és mikor.
+///
+/// A fogyásnapló csak alapanyag szinten létezik, mert a rendelés beérkezésekor
+/// azonnal receptre bontjuk — abból már nem lehet visszafejteni, melyik termék
+/// okozta. Ezért kell külön nyilvántartás a termékstatisztikához.
+///
+/// Sztornó esetén negatív mennyiség kerül ide, így az összegzés magától kiadja
+/// a nettó eladást.
+model ProductSale {
+  id        String   @id @default(uuid())
+  productId String
+  date      DateTime @db.Date
+  quantity  Float
+  /// "shopify_order" | "import"
+  source    String
+  reference String?
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, date])
+  @@index([date])
+  @@map("product_sales")
 }
 
 /// BOM — egy termék egy darabjához mennyi kell az adott alapanyagból
